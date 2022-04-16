@@ -1,3 +1,19 @@
+package main
+
+import (
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/smtp"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/joho/godotenv"
+)
+
 type Transaction struct {
 	ID                string
 	Date              time.Time
@@ -141,6 +157,51 @@ func getTransactionsSummary(file *os.File) (*TransactionsSummary, error) {
 	return &transactionsSummary, nil
 }
 
+func formatTransactionsEmail(transactionsSummary TransactionsSummary) (string, error) {
+	jsonTransactionsByMonth, err := json.MarshalIndent(transactionsSummary.TransactionsByMonth, "", "\t\t")
+	if err != nil {
+		return "err", err
+	}
+
+	transactionsByMonth := strings.ReplaceAll(string(jsonTransactionsByMonth), "{", "")
+	transactionsByMonth = strings.ReplaceAll(transactionsByMonth, "}", "")
+	transactionsByMonth = strings.ReplaceAll(transactionsByMonth, `"`, "")
+	transactionsByMonth = strings.Replace(transactionsByMonth, "\n", "", 1)
+
+	message := fmt.Sprintf("Subject: Stori transaction summary \n\n"+
+		`
+Hi customer, here's your transactions summary:
+	Total Balance: %.2f
+	Average debit amount: %.2f
+	Average credit amount: %.2f
+	Number of transactions by month:
+%s
+	`, transactionsSummary.TotalBalance, transactionsSummary.AverageDebitAmount, transactionsSummary.AverageCreditAmount, transactionsByMonth)
+
+	return message, nil
+}
+
+func sendEmail(message string, toAddress string) (response bool, err error) {
+	fromAddress := os.Getenv("EMAIL")
+	fromEmailPassword := os.Getenv("PASSWORD")
+	smtpServer := os.Getenv("SMTP_SERVER")
+	smptPort := os.Getenv("SMTP_PORT")
+
+	var auth = smtp.PlainAuth("", fromAddress, fromEmailPassword, smtpServer)
+	err = smtp.SendMail(smtpServer+":"+smptPort, auth, fromAddress, []string{toAddress}, []byte(message))
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func init() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+}
 
 func main() {
 	file, err := os.Open("transactions.csv")
@@ -156,3 +217,16 @@ func main() {
 	}
 
 	log.Println("summary", transactionsSummary)
+
+	message, err := formatTransactionsEmail(*transactionsSummary)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	_, err = sendEmail(message, os.Getenv("EMAIL"))
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+}
