@@ -1,0 +1,17 @@
+{
+  "name": "transactions-summary",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "serverless-offline": "^8.7.0"
+  },
+  "devDependencies": {
+    "serverless-localstack": "^0.4.35"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}

@@ -1,0 +1,17 @@
+version: '3.1'
+
+services: 
+  localstack:
+    image: localstack/localstack:latest
+    environment: 
+      - AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE #This is just an example key to validate on localstack container
+      - AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY #This is just an example key to validate on localstack container
+      - AWS_DEFAULT_REGION=us-east-1
+      - DISABLE_CORS_CHECKS=1
+      - EDGE_PORT=4566
+      - SERVICES=lambda,s3,cloudformation,sts,apigateway,iam,route53
+    ports: 
+      - '4566-4597:4566-4597'
+    volumes: 
+      - "${TEMPDIR:-/tmp/localstack}:/temp/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"

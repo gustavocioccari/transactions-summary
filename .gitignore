@@ -1,2 +1,5 @@
 .env
 *.txt
+bin
+node_modules
+.serverless

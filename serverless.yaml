@@ -1,0 +1,32 @@
+service: localstack-lambda
+plugins:
+  - serverless-localstack
+custom:
+  localstack:
+    debug: true
+    stages:
+      - local
+    endpointFile: localstack_endpoints.json
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: go1.x
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - "s3:*"
+          Resource:
+            - "arn:aws:s3:::*"
+
+functions:
+  transactionsummary:
+    description: lambda transaction summary
+    handler: bin/transaction-summary
+    events:
+    - s3: 
+        bucket: transactions-bucket
+        event: s3:ObjectCreated:*
