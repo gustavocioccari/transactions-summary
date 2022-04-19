@@ -57,3 +57,5 @@ It will create a new file on the transactions-bucket and trigger the lambda func
 - Implement mailing with SES
 - Trigger lambda by SQS instead of S3
 - Validate file format
+- Improve project structure, separating concerns
+- Implement concurrency with goroutines when handling bigger files
