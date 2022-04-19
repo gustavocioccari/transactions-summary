@@ -59,3 +59,4 @@ It will create a new file on the transactions-bucket and trigger the lambda func
 - Validate file format
 - Improve project structure, separating concerns
 - Implement concurrency with goroutines when handling bigger files
+- Add unit and E2E tests
