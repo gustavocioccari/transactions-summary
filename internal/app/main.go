@@ -11,6 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/joho/godotenv"
 )
 
@@ -196,6 +204,40 @@ func sendEmail(message string, toAddress string) (response bool, err error) {
 	return true, nil
 }
 
+func getS3File(objectKey string) (*os.File, error) {
+	sess := session.Must(session.NewSession(&aws.Config{
+		Credentials:      credentials.NewStaticCredentials(os.Getenv("AWS_ACCESS_KEY_ID"), os.Getenv("AWS_SECRET_ACCESS_KEY"), ""),
+		S3ForcePathStyle: aws.Bool(true),
+		Region:           aws.String(endpoints.UsEast1RegionID),
+		Endpoint:         aws.String("http://localstack:4566"),
+	}))
+
+	s3sess := s3.New(sess, &aws.Config{})
+
+	_, err := s3sess.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String("transactions-bucket"),
+		Key:    aws.String(objectKey),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	downloader := s3manager.NewDownloader(sess)
+
+	file, err := os.Create("/tmp/" + objectKey)
+
+	_, err = downloader.Download(file,
+		&s3.GetObjectInput{
+			Bucket: aws.String("transactions-bucket"),
+			Key:    aws.String(objectKey),
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
+}
+
 func init() {
 	err := godotenv.Load()
 	if err != nil {
@@ -203,30 +245,42 @@ func init() {
 	}
 }
 
+func handler(s3Event events.S3Event) {
+	var files []os.File
+
+	for _, record := range s3Event.Records {
+		file, err := getS3File(record.S3.Object.Key)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		files = append(files, *file)
+	}
+
+	for _, file := range files {
+		transactionsSummary, err := getTransactionsSummary(&file)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		message, err := formatTransactionsEmail(*transactionsSummary)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		_, err = sendEmail(message, os.Getenv("EMAIL"))
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+	}
+
+	return
+}
+
 func main() {
-	file, err := os.Open("transactions.csv")
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-
-	transactionsSummary, err := getTransactionsSummary(file)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-
-	log.Println("summary", transactionsSummary)
-
-	message, err := formatTransactionsEmail(*transactionsSummary)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-
-	_, err = sendEmail(message, os.Getenv("EMAIL"))
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+	lambda.Start(handler)
 }
